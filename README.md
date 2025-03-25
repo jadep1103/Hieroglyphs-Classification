@@ -1,4 +1,4 @@
-# Hieroglyphs-Classification
+# Hieroglyphs Classification
 _Projet résenté dans le cadre du cours GLO-7030 : Apprentissage par réseaux de neurones profonds._
 
 ## Résumé
