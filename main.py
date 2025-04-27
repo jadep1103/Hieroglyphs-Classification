@@ -28,7 +28,8 @@ if __name__ == "__main__":
       # Chemin vers le dataset CUB-200-2011
 
     # Calcul des statistiques
-    mean_data, std_data = compute_mean_std(path)
+    path_train=os.path.join(path, "train")
+    mean_data, std_data = compute_mean_std(path_train)
     print(f"\nRésultats pour CUB-200-2011:")
     print(f"Moyenne: {mean_data}")
     print(f"Écart-type: {std_data}")
@@ -84,5 +85,5 @@ if __name__ == "__main__":
 
         print(f"{model_name} - Test Accuracy: {test_acc:.2f}%")
 
-    print("Tous les résultats sont loggés sur WandB !")
+    print("Tous les entraînements sont terminés !")
 
