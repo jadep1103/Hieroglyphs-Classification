@@ -80,7 +80,6 @@ if __name__ == "__main__":
                 try:
                     img = Image.open(input_path).convert("L")
                 except (IOError, OSError, PIL.UnidentifiedImageError) as e:
-                    print(f"Erreur en ouvrant {input_path} : {e}")
                     continue
                 img.save(os.path.join(output_dir, filename))
                 augmented_imgs = augment_image(img, aug_per_image)
