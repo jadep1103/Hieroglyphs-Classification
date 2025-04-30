@@ -76,6 +76,12 @@ if __name__ == "__main__":
             output_dir = os.path.join(output_root, rel_dir)
             os.makedirs(output_dir, exist_ok=True)
 
+            if aug_per_image == 0:
+                try:
+                    img = Image.open(input_path).convert("L")
+                except (IOError, OSError, PIL.UnidentifiedImageError) as e:
+                    continue
+                img.save(os.path.join(output_dir, filename))
             if aug_per_image > 0:
                 try:
                     img = Image.open(input_path).convert("L")
