@@ -1,3 +1,14 @@
+def get_transforms(pretrained=False, mean_data=None, std_data=None):
+    if pretrained:
+        weights = ViT_B_16_Weights.DEFAULT
+        return weights.transforms()
+    else:
+        return transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=mean_data, std=std_data)
+        ])
+
 if __name__ == "__main__":
     import os
     import sys
@@ -8,6 +19,7 @@ if __name__ == "__main__":
     from train import train_process
     from dataset import load_datasets, compute_mean_std
     from models import get_models
+    from torchvision.models import ViT_B_16_Weights
     import pandas as pd
 
     torch.cuda.empty_cache()
@@ -35,25 +47,24 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
-    # Transformations des images
-    transform = transforms.Compose([
-        transforms.Resize((224, 224)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=mean_data, std=std_data)
-    ])
-
     # Définition des chemins
     data_dir = "./EgyptianHieroglyphDataset-1"
     train_dir = os.path.join(data_dir, "train")
     val_dir = os.path.join(data_dir, "valid")
     test_dir = os.path.join(data_dir, "test")
     # Chargement des datasets
-    train_loader, val_loader, test_loader, num_classes = load_datasets(train_dir, val_dir, test_dir,transform)
+    # Transforms
+    transform_scratch = get_transforms(pretrained=False, mean_data=mean_data, std_data=std_data)
+    transform_pretrained = get_transforms(pretrained=True)
 
-    print(f"Nombre d'images d'entraînement : {len(train_loader.dataset)}")
-    print(f"Nombre d'images de validation : {len(val_loader.dataset)}")
-    print(f"Nombre d'images de test : {len(test_loader.dataset)}")
-    print(f"Nombre total de classes : {num_classes}")
+    # Datasets (deux versions)
+    train_loader_scratch, val_loader_scratch, test_loader_scratch, _ = load_datasets(train_dir, val_dir, test_dir, transform_scratch)
+    train_loader_pretrained, val_loader_pretrained, test_loader_pretrained, num_classes = load_datasets(train_dir, val_dir, test_dir, transform_pretrained)
+
+    # print(f"Nombre d'images d'entraînement : {len(train_loader.dataset)}")
+    # print(f"Nombre d'images de validation : {len(val_loader.dataset)}")
+    # print(f"Nombre d'images de test : {len(test_loader.dataset)}")
+    # print(f"Nombre total de classes : {num_classes}")
 
     # Récupération des modèles
     models_dict = get_models(num_classes)
@@ -64,9 +75,22 @@ if __name__ == "__main__":
     epochs=50
 
     for name, model in models_dict.items():
-        p = mp.Process(target=train_process, args=(name, model, train_loader, val_loader, test_loader, epochs, result_queue))
+        if "pretrained" in name.lower():
+            train_loader = train_loader_pretrained
+            val_loader = val_loader_pretrained
+            test_loader = test_loader_pretrained
+        else:
+            train_loader = train_loader_scratch
+            val_loader = val_loader_scratch
+            test_loader = test_loader_scratch
+
+        p = mp.Process(
+            target=train_process,
+            args=(name, model, train_loader, val_loader, test_loader, epochs, result_queue)
+        )
         p.start()
         processes.append(p)
+
 
     for p in processes:
         p.join()

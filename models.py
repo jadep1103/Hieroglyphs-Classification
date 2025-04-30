@@ -5,7 +5,13 @@ import torch.optim as optim
 import torchvision
 from torchvision import models
 from torchvision.models import ResNet18_Weights, EfficientNet_B0_Weights, DenseNet121_Weights
+from torchvision.models import vit_b_16, ViT_B_16_Weights
 
+def freeze_backbone(model):
+    for param in model.parameters():
+        param.requires_grad = False
+    for param in model.heads.parameters():  # On garde la tête entraînable
+        param.requires_grad = True
 
 class Transpose(nn.Module):
     def __init__(self, dim1, dim2):
@@ -102,8 +108,21 @@ def get_models(num_classes):
     # densenet.classifier = nn.Linear(densenet.classifier.in_features, num_classes)
     # models_dict['DenseNet121'] = densenet
 
-    # models_dict['CustomCNN'] = CustomCNN(num_classes)
-    models_dict['ViT'] = ViTClassifier(image_size=224, num_classes=num_classes)
+    models_dict['CustomCNN'] = CustomCNN(num_classes)
 
+    # From scratch
+    # models_dict['ViT'] = ViTClassifier(image_size=224, num_classes=num_classes)
+
+    # ViT préentraîné - fine-tuning complet
+    # vit_finetune = vit_b_16(weights=ViT_B_16_Weights.DEFAULT)
+    # in_features = vit_finetune.heads[0].in_features  # ✅ CORRECTION ICI
+    # vit_finetune.heads = nn.Linear(in_features, num_classes)
+    # models_dict['ViT_pretrained_finetune'] = vit_finetune
+
+    # # ViT préentraîné - feature extractor (backbone figé)
+    # vit_frozen = vit_b_16(weights=ViT_B_16_Weights.DEFAULT)
+    # vit_frozen.heads = nn.Linear(in_features, num_classes)
+    # freeze_backbone(vit_frozen)
+    # models_dict['ViT_pretrained_frozen'] = vit_frozen
 
     return models_dict
