@@ -2,6 +2,7 @@ from tqdm import tqdm
 import torchvision.transforms as T
 from torchvision import datasets
 from torch.utils.data import DataLoader
+import os
 
 def compute_mean_std(dataset_path):
     """
@@ -51,5 +52,35 @@ def load_datasets(train_dir, val_dir, test_dir,transform):
     train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=2)
     val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False, num_workers=2)
     test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False, num_workers=2)
+    # print(train_dataset.classes)
 
     return train_loader, val_loader, test_loader, len(train_dataset.classes)
+
+
+
+# ============ SECTION DEBUG =============
+if __name__ == "__main__":
+    transform = T.Compose([
+        T.Resize((224, 224)),
+        T.ToTensor()
+    ])
+    
+    data_dir = "./EgyptianHieroglyphDataset-1"
+    train_dir = os.path.join(data_dir, "train")
+    val_dir   = os.path.join(data_dir, "valid")
+    test_dir  = os.path.join(data_dir, "test")
+
+    train_loader, val_loader, test_loader, num_classes = load_datasets(train_dir, val_dir, test_dir, transform)
+
+    print("\n✅ Vérification des classes alignées :")
+    train_classes = train_loader.dataset.classes
+    val_classes   = val_loader.dataset.classes
+    test_classes  = test_loader.dataset.classes
+
+    print(f"Nombre de classes : {num_classes}")
+    print(f"Train classes (n={len(train_classes)}): {train_classes[:5]} ...")
+    print(f"Val   classes (n={len(val_classes)}): {val_classes[:5]} ...")
+    print(f"Test  classes (n={len(test_classes)}): {test_classes[:5]} ...")
+
+    assert train_classes == val_classes == test_classes, "💥 Mismatch de mapping entre les splits !"
+    print("✅ Mapping de classes cohérent !")

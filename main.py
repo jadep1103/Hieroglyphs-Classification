@@ -49,9 +49,9 @@ if __name__ == "__main__":
 
     # Définition des chemins
     data_dir = "./EgyptianHieroglyphDataset-1"
-    train_dir = os.path.join(data_dir, "train")
-    val_dir = os.path.join(data_dir, "valid")
-    test_dir = os.path.join(data_dir, "test")
+    train_dir = os.path.join(data_dir, "new_train")
+    val_dir = os.path.join(data_dir, "new_valid")
+    test_dir = os.path.join(data_dir, "new_test")
     # Chargement des datasets
     # Transforms
     transform_scratch = get_transforms(pretrained=False, mean_data=mean_data, std_data=std_data)
@@ -72,7 +72,7 @@ if __name__ == "__main__":
     # Liste des processus
     result_queue = mp.Queue()
     processes = []
-    epochs=50
+    epochs=10
 
     for name, model in models_dict.items():
         if "pretrained" in name.lower():

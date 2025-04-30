@@ -96,9 +96,9 @@ class ViTClassifier(nn.Module):
 def get_models(num_classes):
     models_dict = {}
 
-    # resnet = models.resnet18(weights=ResNet18_Weights.DEFAULT)
-    # resnet.fc = nn.Linear(resnet.fc.in_features, num_classes)
-    # models_dict['ResNet18'] = resnet
+    resnet = models.resnet18(weights=ResNet18_Weights.DEFAULT)
+    resnet.fc = nn.Linear(resnet.fc.in_features, num_classes)
+    models_dict['ResNet18'] = resnet
 
     # efficientnet = models.efficientnet_b0(weights=EfficientNet_B0_Weights.DEFAULT)
     # efficientnet.classifier[1] = nn.Linear(efficientnet.classifier[1].in_features, num_classes)
@@ -110,19 +110,19 @@ def get_models(num_classes):
 
     models_dict['CustomCNN'] = CustomCNN(num_classes)
 
-    # From scratch
-    # models_dict['ViT'] = ViTClassifier(image_size=224, num_classes=num_classes)
+    #From scratch
+    models_dict['ViT'] = ViTClassifier(image_size=224, num_classes=num_classes)
 
     # ViT préentraîné - fine-tuning complet
-    # vit_finetune = vit_b_16(weights=ViT_B_16_Weights.DEFAULT)
-    # in_features = vit_finetune.heads[0].in_features  # ✅ CORRECTION ICI
-    # vit_finetune.heads = nn.Linear(in_features, num_classes)
-    # models_dict['ViT_pretrained_finetune'] = vit_finetune
+    vit_finetune = vit_b_16(weights=ViT_B_16_Weights.DEFAULT)
+    in_features = vit_finetune.heads[0].in_features  # ✅ CORRECTION ICI
+    vit_finetune.heads = nn.Linear(in_features, num_classes)
+    models_dict['ViT_pretrained_finetune'] = vit_finetune
 
-    # # ViT préentraîné - feature extractor (backbone figé)
-    # vit_frozen = vit_b_16(weights=ViT_B_16_Weights.DEFAULT)
-    # vit_frozen.heads = nn.Linear(in_features, num_classes)
-    # freeze_backbone(vit_frozen)
-    # models_dict['ViT_pretrained_frozen'] = vit_frozen
+    # ViT préentraîné - feature extractor (backbone figé)
+    vit_frozen = vit_b_16(weights=ViT_B_16_Weights.DEFAULT)
+    vit_frozen.heads = nn.Linear(in_features, num_classes)
+    freeze_backbone(vit_frozen)
+    models_dict['ViT_pretrained_frozen'] = vit_frozen
 
     return models_dict
