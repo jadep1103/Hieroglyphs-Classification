@@ -46,8 +46,8 @@ if __name__ == "__main__":
         transforms.Resize((416, 416), interpolation=transforms.InterpolationMode.BICUBIC)
     ])
 
-    input_root = "EgyptianHieroglyphDataset-1/train"
-    output_root = "EgyptianHieroglyphDataset-1/train_aug"
+    input_root = "EgyptianHieroglyphDataset-1/new_train"
+    output_root = "EgyptianHieroglyphDataset-1/new_train_aug"
     target_per_class = 200
     max_aug_per_image = 15
     os.makedirs(output_root, exist_ok=True)
@@ -76,6 +76,12 @@ if __name__ == "__main__":
             output_dir = os.path.join(output_root, rel_dir)
             os.makedirs(output_dir, exist_ok=True)
 
+            if aug_per_image == 0:
+                try:
+                    img = Image.open(input_path).convert("L")
+                except (IOError, OSError, PIL.UnidentifiedImageError) as e:
+                    continue
+                img.save(os.path.join(output_dir, filename))
             if aug_per_image > 0:
                 try:
                     img = Image.open(input_path).convert("L")

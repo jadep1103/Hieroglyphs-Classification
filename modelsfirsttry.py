@@ -24,75 +24,71 @@ class Transpose(nn.Module):
 
 class CustomCNN(nn.Module):
     def __init__(self, num_classes):
-        super().__init__()
+        super(CustomCNN, self).__init__()
         self.features = nn.Sequential(
             nn.Conv2d(3, 32, kernel_size=3, padding=1),
-            nn.BatchNorm2d(32),
             nn.ReLU(),
-            nn.AvgPool2d(2),
-
+            nn.MaxPool2d(2),
             nn.Conv2d(32, 64, kernel_size=3, padding=1),
-            nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.AvgPool2d(2),
-
-            nn.Conv2d(64, 128, kernel_size=3, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
-            nn.AdaptiveAvgPool2d((1, 1))
+            nn.MaxPool2d(2),
         )
         self.classifier = nn.Sequential(
             nn.Flatten(),
-            nn.Dropout(0.3),
-            nn.Linear(128, 64),
+            nn.Linear(64 * 56 * 56, 256),
             nn.ReLU(),
-            nn.Linear(64, num_classes)
+            nn.Linear(256, num_classes)
         )
 
     def forward(self, x):
         x = self.features(x)
-        return self.classifier(x)
+        x = self.classifier(x)
+        return x
 
 class ViTClassifier(nn.Module):
-    def __init__(self, image_size=224, patch_size=16, num_classes=170,
-                 dim=256, depth=4, heads=4, mlp_dim=512, dropout=0.1):
-        super().__init__()
+    def __init__(self, image_size=128, patch_size=16, num_classes=170, dim=512, depth=6, heads=8, mlp_dim=1024, dropout=0.1):
+        super(ViTClassifier, self).__init__()
 
-        assert image_size % patch_size == 0, "image_size must be divisible by patch_size"
+        assert image_size % patch_size == 0, "Image dimensions must be divisibles par patch size."
         num_patches = (image_size // patch_size) ** 2
-        patch_dim = 3 * patch_size * patch_size
+        patch_dim = 3 * patch_size * patch_size  # 3 canaux (RGB)
 
-        self.patch_embed = nn.Sequential(
+        self.patch_size = patch_size
+
+        # Embedding des patches
+        self.to_patch_embedding = nn.Sequential(
             nn.Conv2d(3, dim, kernel_size=patch_size, stride=patch_size),
-            nn.Flatten(2),              # (B, dim, num_patches)
-            Transpose(1, 2),            # (B, num_patches, dim)
-            nn.LayerNorm(dim)          # ✅ ajout LayerNorm juste après embeddings
+            nn.Flatten(2),
+            Transpose(1, 2)  # (batch, num_patches, dim)
         )
 
+        # Tokens + positionnels
+        self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
-        self.pos_embedding = nn.Parameter(torch.empty(1, num_patches + 1, dim))
-        nn.init.trunc_normal_(self.pos_embedding, std=0.02)  # ✅ initialisation propre
+        self.dropout = nn.Dropout(dropout)
 
-        encoder_layer = nn.TransformerEncoderLayer(
-            d_model=dim, nhead=heads, dim_feedforward=mlp_dim,
-            dropout=dropout, batch_first=True
-        )
+        # Encodeur Transformer
+        encoder_layer = nn.TransformerEncoderLayer(d_model=dim, nhead=heads, dim_feedforward=mlp_dim, dropout=dropout, batch_first=True)
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=depth)
 
+        # Classification
+        self.to_cls_token = nn.Identity()
         self.mlp_head = nn.Sequential(
             nn.LayerNorm(dim),
             nn.Linear(dim, num_classes)
         )
 
     def forward(self, x):
-        B = x.size(0)
-        x = self.patch_embed(x)                             # (B, num_patches, dim)
-        cls_tokens = self.cls_token.expand(B, -1, -1)       # (B, 1, dim)
-        x = torch.cat([cls_tokens, x], dim=1)               # (B, num_patches+1, dim)
+        B = x.shape[0]
+        x = self.to_patch_embedding(x)  # (B, N, D)
+        cls_tokens = self.cls_token.expand(B, -1, -1)  # (B, 1, D)
+        x = torch.cat((cls_tokens, x), dim=1)  # (B, N+1, D)
         x = x + self.pos_embedding[:, :x.size(1)]
-        x = self.transformer(x)                             # (B, num_patches+1, dim)
-        return self.mlp_head(x[:, 0])                       # CLS token
+        x = self.dropout(x)
 
+        x = self.transformer(x)
+        x = self.to_cls_token(x[:, 0])
+        return self.mlp_head(x)
 
     
 
@@ -112,12 +108,12 @@ def get_models(num_classes):
     # densenet.classifier = nn.Linear(densenet.classifier.in_features, num_classes)
     # models_dict['DenseNet121'] = densenet
 
-    #models_dict['CustomCNN'] = CustomCNN(num_classes)
+    # models_dict['CustomCNN'] = CustomCNN(num_classes)
 
     #From scratch
-    models_dict['ViT'] = ViTClassifier(image_size=224, num_classes=num_classes)
+    # models_dict['ViT'] = ViTClassifier(image_size=224, num_classes=num_classes)
 
- # ViT préentraîné - fine-tuning complet
+    # ViT préentraîné - fine-tuning complet
     vit_finetune = vit_b_16(weights=ViT_B_16_Weights.DEFAULT)
     in_features = vit_finetune.heads[0].in_features  # ✅ CORRECTION ICI
     vit_finetune.heads = nn.Linear(in_features, num_classes)

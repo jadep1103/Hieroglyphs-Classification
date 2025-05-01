@@ -5,15 +5,31 @@ import torch.nn as nn
 import torch.optim as optim
 import pandas as pd
 import os
+import matplotlib.pyplot as plt
+import seaborn as sns
 import wandb
+from sklearn.metrics import classification_report, confusion_matrix, f1_score, precision_score, recall_score
+import numpy as np
+
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Fonction d'entraînement
-def train_model(model, train_loader, val_loader, epochs=10, lr=1e-3):
+def train_model(model, train_loader, val_loader, epochs=30, lr=1e-4):
     model = model.to(device)
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    #PRINCIPAL
+    #optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    #POUR VIT FINETUNED
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
+    #POUR VIT FROZEN
+    #optimizer = torch.optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=lr, weight_decay=1e-4)
+
+    #LR Scheduler éventuel
+    #scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+#     optimizer, mode='min', factor=0.5, patience=3, verbose=True
+# )
+
 
     history = []  # Stockage des métriques
 
@@ -42,6 +58,9 @@ def train_model(model, train_loader, val_loader, epochs=10, lr=1e-3):
 
         # Validation
         val_loss, val_acc = validate_model(model, val_loader)
+
+        #SCHEDULER 
+        # scheduler.step(val_loss)
 
         # Log dans l'historique
         history.append({
@@ -85,36 +104,91 @@ def validate_model(model, val_loader):
 # Fonction d'évaluation finale
 def evaluate_model(model, test_loader):
     model.eval()
-    correct = 0
-    total = 0
+    all_preds = []
+    all_labels = []
     with torch.no_grad():
         for inputs, labels in test_loader:
             inputs, labels = inputs.to(device), labels.to(device)
             outputs = model(inputs)
             _, predicted = torch.max(outputs, 1)
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
-    acc = 100 * correct / total
+            all_preds.extend(predicted.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
+
+    acc = 100 * np.mean(np.array(all_preds) == np.array(all_labels))
     print(f"Test Accuracy: {acc:.2f}%")
-    return acc
-    
+
+    # Calcul des autres métriques
+    report = classification_report(all_labels, all_preds, output_dict=True)
+    f1_macro = report["macro avg"]["f1-score"]
+    precision_macro = report["macro avg"]["precision"]
+    recall_macro = report["macro avg"]["recall"]
+
+    print(f"F1 (macro): {f1_macro:.4f}, Precision (macro): {precision_macro:.4f}, Recall (macro): {recall_macro:.4f}")
+
+    return acc, report, all_labels, all_preds
+
+def plot_confusion_matrix(y_true, y_pred, class_names, model_name):
+    cm = confusion_matrix(y_true, y_pred)
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", 
+                xticklabels=class_names, yticklabels=class_names)
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+    plt.title(f'Confusion Matrix - {model_name}')
+    plt.tight_layout()
+
+    os.makedirs("logs", exist_ok=True)
+    path = f"logs/confusion_matrix_{model_name}.png"
+    plt.savefig(path)
+    plt.close()
+
+    return path  # Pour wandb
+
 def train_process(model_name, model, train_loader, val_loader, test_loader, epochs, result_queue):
     print(f"Starting training for {model_name}")
 
     history = train_model(model, train_loader, val_loader, epochs=epochs)
-    acc = evaluate_model(model, test_loader)
-    torch.cuda.empty_cache()
+    acc, report, all_labels, all_preds = evaluate_model(model, test_loader)
 
-    print(f"Finished training {model_name} with Test Accuracy: {acc:.2f}%")
+    # === Résumé global (macro) ===
+    macro_metrics = {
+        "test_accuracy": acc,
+        "f1_macro": report["macro avg"]["f1-score"],
+        "precision_macro": report["macro avg"]["precision"],
+        "recall_macro": report["macro avg"]["recall"]
+    }
 
-    # === Nouveau : Sauvegarder l'historique dans un CSV ===
-    df_history = pd.DataFrame(history)
+    # === Par classe ===
+    class_metrics = {f"class_{label}_{metric}": value
+                    for label, scores in report.items() if label.isdigit()
+                    for metric, value in scores.items()}
+
+    # Matrice de confusion
+    class_names = [str(i) for i in sorted(set(all_labels))]
+    cm_path = plot_confusion_matrix(all_labels, all_preds, class_names, model_name)
+
+    # Log dans wandb
+    if wandb.run:
+        wandb.log({
+            "confusion_matrix": wandb.Image(cm_path),
+            **macro_metrics,
+            **class_metrics
+        })
+
+    # Sauvegarde CSV du rapport complet
+    df_report = pd.DataFrame(report).transpose()
     os.makedirs("logs", exist_ok=True)
+    df_report.to_csv(f"logs/report_{model_name}.csv")
+
+    # Historique
+    df_history = pd.DataFrame(history)
     df_history.to_csv(f"logs/history_{model_name}.csv", index=False)
 
-    # === Résultat pour la queue multiprocess ===
-    result_queue.put({
+    results = {
         "model_name": model_name,
-        "test_accuracy": acc,
+        **macro_metrics,
+        **class_metrics,
         "history": history
-    })
+    }
+
+    result_queue.put(results)

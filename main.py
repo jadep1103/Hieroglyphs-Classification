@@ -18,7 +18,7 @@ if __name__ == "__main__":
     from torch.utils.data import Dataset, DataLoader
     from train import train_process
     from dataset import load_datasets, compute_mean_std
-    from models import get_models
+    from modelsfirsttry import get_models
     from torchvision.models import ViT_B_16_Weights
     import pandas as pd
 
@@ -49,7 +49,7 @@ if __name__ == "__main__":
 
     # Définition des chemins
     data_dir = "./EgyptianHieroglyphDataset-1"
-    train_dir = os.path.join(data_dir, "new_train")
+    train_dir = os.path.join(data_dir, "new_train_aug")
     val_dir = os.path.join(data_dir, "new_valid")
     test_dir = os.path.join(data_dir, "new_test")
     # Chargement des datasets
@@ -72,7 +72,7 @@ if __name__ == "__main__":
     # Liste des processus
     result_queue = mp.Queue()
     processes = []
-    epochs=10
+    epochs=15
 
     for name, model in models_dict.items():
         if "pretrained" in name.lower():
